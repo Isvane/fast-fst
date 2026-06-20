@@ -1,9 +1,12 @@
+use std::cmp::Ordering;
+use std::cmp::Reverse;
+use std::collections::BinaryHeap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
 use std::path::Path;
 
 use fst::automaton::Levenshtein;
-use fst::{IntoStreamer, Set, SetBuilder};
+use fst::{IntoStreamer, Set, SetBuilder, Streamer};
 use memmap2::Mmap;
 
 struct Dictionary {
@@ -14,7 +17,13 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     let txt_path = Path::new("dict.txt");
     let fst_path = Path::new("dict.fst");
 
-    build(txt_path.to_str().unwrap(), fst_path.to_str().unwrap())?;
+    if !fst_path.exists() {
+        println!("Building FST dictionary...");
+        build(
+            txt_path.to_str().expect("File contain illegal character"),
+            fst_path.to_str().expect("File contain illegal character"),
+        )?;
+    }
 
     Ok(())
 }
@@ -42,6 +51,36 @@ fn build(input_path: &str, output_path: &str) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+#[derive(Eq)]
+struct SearchResult {
+    is_exact: bool,
+    key: String,
+}
+
+impl SearchResult {
+    fn priority_key(&self) -> impl Ord + '_ {
+        (Reverse(self.is_exact), &self.key)
+    }
+}
+
+impl Ord for SearchResult {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.priority_key().cmp(&other.priority_key())
+    }
+}
+
+impl PartialOrd for SearchResult {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl PartialEq for SearchResult {
+    fn eq(&self, other: &Self) -> bool {
+        self.priority_key() == other.priority_key()
+    }
+}
+
 #[allow(dead_code)]
 impl Dictionary {
     fn open(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
@@ -54,11 +93,30 @@ impl Dictionary {
     pub fn search<'a>(
         &'a self,
         query: &str,
-    ) -> Result<fst::set::Stream<'a, Levenshtein>, Box<dyn std::error::Error>> {
+    ) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
         let search_term = if query.is_empty() { "" } else { query };
         let lev = Levenshtein::new(search_term, 1)?;
 
-        Ok(self.map.search(lev).into_stream())
+        let mut heap = BinaryHeap::with_capacity(5);
+
+        let mut stream = self.map.search(lev).into_stream();
+
+        while let Some(key_bytes) = stream.next() {
+            let key = std::str::from_utf8(key_bytes)?.to_string();
+            let is_exact = key == search_term;
+
+            let result = SearchResult { is_exact, key: key };
+
+            if heap.len() < 5 {
+                heap.push(result);
+            } else if let Some(mut worst_of_the_best) = heap.peek_mut() {
+                if result < *worst_of_the_best {
+                    *worst_of_the_best = result;
+                }
+            }
+        }
+
+        Ok(heap.into_sorted_vec())
     }
 }
 
@@ -91,19 +149,22 @@ mod tests {
         let dict = create_test_dict(&["apple", "banana", "cherry"]);
 
         // Exact match
-        let results = dict.search("apple").unwrap().into_strs().unwrap();
-        assert_eq!(results, vec!["apple"]);
+        let results = dict.search("apple").unwrap();
+        let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
+        assert_eq!(keys, vec!["apple"]);
 
         // Levenshtein distance of 1 (substitution)
-        let results = dict.search("baxana").unwrap().into_strs().unwrap();
-        assert_eq!(results, vec!["banana"]);
+        let results = dict.search("baxana").unwrap();
+        let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
+        assert_eq!(keys, vec!["banana"]);
 
         // Levenshtein distance of 1 (deletion/substitution)
-        let results = dict.search("cheriy").unwrap().into_strs().unwrap();
-        assert_eq!(results, vec!["cherry"]);
+        let results = dict.search("cheriy").unwrap();
+        let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
+        assert_eq!(keys, vec!["cherry"]);
 
         // Out of bounds (> 1 distance)
-        let results = dict.search("ap").unwrap().into_strs().unwrap();
+        let results = dict.search("ap").unwrap();
         assert!(results.is_empty());
     }
 }
