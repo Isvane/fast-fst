@@ -8,6 +8,7 @@ use std::path::Path;
 use fst::automaton::Levenshtein;
 use fst::{IntoStreamer, Set, SetBuilder, Streamer};
 use memmap2::Mmap;
+use rayon::prelude::*;
 
 struct Dictionary {
     map: Set<Mmap>,
@@ -20,8 +21,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     if !fst_path.exists() {
         println!("Building FST dictionary...");
         build(
-            txt_path.to_str().expect("File contain illegal character"),
-            fst_path.to_str().expect("File contain illegal character"),
+            txt_path.to_str().expect("File contains illegal characters"),
+            fst_path.to_str().expect("File contains illegal characters"),
         )?;
     }
 
@@ -117,6 +118,19 @@ impl Dictionary {
         }
 
         Ok(heap.into_sorted_vec())
+    }
+
+    fn batch_search(
+        &self,
+        queries: &[&str],
+    ) -> Vec<Result<Vec<SearchResult>, Box<dyn std::error::Error + Send + Sync>>> {
+        queries
+            .par_iter()
+            .map(|&query| {
+                self.search(query)
+                    .map_err(|e| format!("Search failed: {}", e).into())
+            })
+            .collect()
     }
 }
 

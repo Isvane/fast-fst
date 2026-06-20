@@ -6,3 +6,4 @@ edition = "2024"
 [dependencies]
 fst = { version = "0.4.7", features = ["levenshtein"] }
 memmap2 = "0.9.10"
+rayon = "1.12.0"
