@@ -1,30 +1,45 @@
-use std::cmp::Ordering;
 use std::cmp::Reverse;
 use std::collections::BinaryHeap;
+use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
 
-use fst::automaton::Levenshtein;
 use fst::{IntoStreamer, Set, SetBuilder, Streamer};
+use levenshtein_automata::{DFA, Distance, LevenshteinAutomatonBuilder};
 use memmap2::Mmap;
 use rayon::prelude::*;
 
-pub fn build(input_path: &str, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
-    let file = File::open(input_path)?;
-    let mut reader = BufReader::new(file);
-    let mut line = String::new();
+pub struct FstDfaWrapper(pub DFA);
 
-    let writer = BufWriter::new(File::create(output_path)?);
-    let mut build = SetBuilder::new(writer)?;
+impl fst::Automaton for FstDfaWrapper {
+    type State = u32;
+
+    #[inline]
+    fn start(&self) -> Self::State {
+        self.0.initial_state()
+    }
+
+    #[inline]
+    fn is_match(&self, state: &Self::State) -> bool {
+        matches!(self.0.distance(*state), Distance::Exact(_))
+    }
+
+    #[inline]
+    fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
+        self.0.transition(*state, byte)
+    }
+}
+
+pub fn build(input_path: &str, output_path: &str) -> Result<(), Box<dyn Error>> {
+    let mut reader = BufReader::new(File::open(input_path)?);
+    let mut build = SetBuilder::new(BufWriter::new(File::create(output_path)?))?;
+    let mut line = String::new();
 
     while reader.read_line(&mut line)? > 0 {
         let trimmed = line.trim();
-        if trimmed.is_empty() {
-            line.clear();
-            continue;
+        if !trimmed.is_empty() {
+            build.insert(trimmed)?;
         }
-
-        build.insert(trimmed)?;
         line.clear();
     }
 
@@ -34,86 +49,71 @@ pub fn build(input_path: &str, output_path: &str) -> Result<(), Box<dyn std::err
 
 pub struct Dictionary {
     pub map: Set<Mmap>,
+    pub lev_builder: LevenshteinAutomatonBuilder,
 }
 
-#[derive(Eq)]
+#[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SearchResult {
     pub is_exact: bool,
     pub key: String,
 }
 
-impl SearchResult {
-    fn priority_key(&self) -> impl Ord + '_ {
-        (Reverse(self.is_exact), &self.key)
-    }
-}
-
-impl Ord for SearchResult {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.priority_key().cmp(&other.priority_key())
-    }
-}
-
-impl PartialOrd for SearchResult {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl PartialEq for SearchResult {
-    fn eq(&self, other: &Self) -> bool {
-        self.priority_key() == other.priority_key()
-    }
-}
-
-#[allow(dead_code)]
 impl Dictionary {
-    pub fn open(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let data = File::open(path)?;
-        let mmap = unsafe { Mmap::map(&data)? };
+    pub fn open(path: &str) -> Result<Self, Box<dyn Error>> {
+        let file = File::open(path)?;
+        let mmap = unsafe { Mmap::map(&file)? };
         let map = Set::new(mmap)?;
-        Ok(Self { map })
+
+        Ok(Self {
+            map: map,
+            lev_builder: LevenshteinAutomatonBuilder::new(1, false),
+        })
     }
 
-    pub fn search<'a>(
-        &'a self,
-        query: &str,
-    ) -> Result<Vec<SearchResult>, Box<dyn std::error::Error>> {
-        let search_term = if query.is_empty() { "" } else { query };
-        let lev = Levenshtein::new(search_term, 1)?;
-
+    pub fn search(&self, query: &str) -> Result<Vec<SearchResult>, Box<dyn Error>> {
+        let dfa = FstDfaWrapper(self.lev_builder.build_dfa(query));
         let mut heap = BinaryHeap::with_capacity(5);
+        let query_bytes = query.as_bytes();
 
-        let mut stream = self.map.search(lev).into_stream();
+        let mut stream = self.map.search(&dfa).into_stream();
 
         while let Some(key_bytes) = stream.next() {
-            let key = std::str::from_utf8(key_bytes)?.to_string();
-            let is_exact = key == search_term;
-
-            let result = SearchResult { is_exact, key };
+            let is_exact = key_bytes == query_bytes;
+            let candidate = (Reverse(is_exact), key_bytes);
 
             if heap.len() < 5 {
-                heap.push(result);
-            } else if let Some(mut worst_of_the_best) = heap.peek_mut() {
-                if result < *worst_of_the_best {
-                    *worst_of_the_best = result;
+                heap.push((Reverse(is_exact), key_bytes.to_vec()));
+            } else if let Some(mut worst) = heap.peek_mut() {
+                if candidate < (worst.0, worst.1.as_slice()) {
+                    *worst = (Reverse(is_exact), key_bytes.to_vec());
                 }
             }
         }
 
-        Ok(heap.into_sorted_vec())
+        let mut results: Vec<_> = heap
+            .into_iter()
+            .map(|(Reverse(is_exact), bytes)| {
+                Ok(SearchResult {
+                    is_exact,
+                    key: String::from_utf8(bytes)?,
+                })
+            })
+            .collect::<Result<_, Box<dyn Error>>>()?;
+
+        results.sort_unstable_by(|a, b| {
+            (Reverse(a.is_exact), &a.key).cmp(&(Reverse(b.is_exact), &b.key))
+        });
+
+        Ok(results)
     }
 
     pub fn batch_search(
         &self,
         queries: &[&str],
-    ) -> Vec<Result<Vec<SearchResult>, Box<dyn std::error::Error + Send + Sync>>> {
+    ) -> Vec<Result<Vec<SearchResult>, Box<dyn Error + Send + Sync>>> {
         queries
             .par_iter()
-            .map(|&query| {
-                self.search(query)
-                    .map_err(|e| format!("Search failed: {}", e).into())
-            })
+            .map(|&query| self.search(query).map_err(|e| e.to_string().into()))
             .collect()
     }
 }
@@ -139,6 +139,7 @@ mod tests {
 
         Dictionary {
             map: Set::new(mmap).unwrap(),
+            lev_builder: LevenshteinAutomatonBuilder::new(1, false),
         }
     }
 
