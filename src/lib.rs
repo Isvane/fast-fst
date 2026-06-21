@@ -166,4 +166,31 @@ mod tests {
         let results = dict.search("ap").unwrap();
         assert!(results.is_empty());
     }
+
+    #[test]
+    fn test_batch_search() {
+        let dict = create_test_dict(&["apple", "banana", "cherry"]);
+
+        let batch_queries: Vec<&str> = (0..10)
+            .map(|i| if i % 2 == 0 { "word0050" } else { "baxana" })
+            .collect();
+
+        let results = dict.batch_search(&batch_queries);
+        // Should received 10 responses
+        assert_eq!(results.len(), 10);
+
+        for (i, res) in results.into_iter().enumerate() {
+            let matches = res.expect("Search thread panicked or errored unexpectedly");
+
+            if i % 2 == 0 {
+                // "word0050" is outside Levenshtein distance 1 for all items
+                assert!(matches.is_empty(), "Expected empty results for index {}", i);
+            } else {
+                // "baxana" should successfully resolve to "banana"
+                assert_eq!(matches.len(), 1, "Expected exactly 1 match for index {}", i);
+                assert_eq!(matches[0].key, "banana");
+                assert_eq!(matches[0].is_exact, false);
+            }
+        }
+    }
 }
