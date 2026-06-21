@@ -3,33 +3,13 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
-use std::path::Path;
 
 use fst::automaton::Levenshtein;
 use fst::{IntoStreamer, Set, SetBuilder, Streamer};
 use memmap2::Mmap;
 use rayon::prelude::*;
 
-struct Dictionary {
-    map: Set<Mmap>,
-}
-
-fn main() -> Result<(), Box<dyn std::error::Error>> {
-    let txt_path = Path::new("dict.txt");
-    let fst_path = Path::new("dict.fst");
-
-    if !fst_path.exists() {
-        println!("Building FST dictionary...");
-        build(
-            txt_path.to_str().expect("File contains illegal characters"),
-            fst_path.to_str().expect("File contains illegal characters"),
-        )?;
-    }
-
-    Ok(())
-}
-
-fn build(input_path: &str, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
+pub fn build(input_path: &str, output_path: &str) -> Result<(), Box<dyn std::error::Error>> {
     let file = File::open(input_path)?;
     let mut reader = BufReader::new(file);
     let mut line = String::new();
@@ -52,10 +32,14 @@ fn build(input_path: &str, output_path: &str) -> Result<(), Box<dyn std::error::
     Ok(())
 }
 
+pub struct Dictionary {
+    pub map: Set<Mmap>,
+}
+
 #[derive(Eq)]
-struct SearchResult {
-    is_exact: bool,
-    key: String,
+pub struct SearchResult {
+    pub is_exact: bool,
+    pub key: String,
 }
 
 impl SearchResult {
@@ -84,7 +68,7 @@ impl PartialEq for SearchResult {
 
 #[allow(dead_code)]
 impl Dictionary {
-    fn open(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
+    pub fn open(path: &str) -> Result<Self, Box<dyn std::error::Error>> {
         let data = File::open(path)?;
         let mmap = unsafe { Mmap::map(&data)? };
         let map = Set::new(mmap)?;
@@ -106,7 +90,7 @@ impl Dictionary {
             let key = std::str::from_utf8(key_bytes)?.to_string();
             let is_exact = key == search_term;
 
-            let result = SearchResult { is_exact, key: key };
+            let result = SearchResult { is_exact, key };
 
             if heap.len() < 5 {
                 heap.push(result);
@@ -120,7 +104,7 @@ impl Dictionary {
         Ok(heap.into_sorted_vec())
     }
 
-    fn batch_search(
+    pub fn batch_search(
         &self,
         queries: &[&str],
     ) -> Vec<Result<Vec<SearchResult>, Box<dyn std::error::Error + Send + Sync>>> {
