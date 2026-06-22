@@ -60,24 +60,25 @@ pub struct SearchResult {
     pub key: String,
 }
 
-impl Dictionary {
-    pub fn open(path: &str) -> Result<Self, Box<dyn Error>> {
-        let file = File::open(path)?;
-        let mmap = unsafe { Mmap::map(&file)? };
-        let map = Set::new(mmap)?;
+pub struct SearchBuilder<'a> {
+    dictionary: &'a Dictionary,
+    query: String,
+}
 
-        Ok(Self {
-            map: map,
-            lev_builder: LevenshteinAutomatonBuilder::new(1, false),
-        })
+impl<'a> SearchBuilder<'a> {
+    pub fn new(dictionary: &'a Dictionary, query: &str) -> Self {
+        Self {
+            dictionary,
+            query: query.to_string(),
+        }
     }
 
-    pub fn search(&self, query: &str) -> Result<Vec<SearchResult>, Box<dyn Error>> {
-        let dfa = FstDfaWrapper(self.lev_builder.build_dfa(query));
+    pub fn execute(self) -> Result<Vec<SearchResult>, Box<dyn Error>> {
+        let dfa = FstDfaWrapper(self.dictionary.lev_builder.build_dfa(&self.query));
         let mut heap = BinaryHeap::with_capacity(5);
-        let query_bytes = query.as_bytes();
+        let query_bytes = self.query.as_bytes();
 
-        let mut stream = self.map.search(&dfa).into_stream();
+        let mut stream = self.dictionary.map.search(&dfa).into_stream();
 
         while let Some(key_bytes) = stream.next() {
             let is_exact = key_bytes == query_bytes;
@@ -108,6 +109,23 @@ impl Dictionary {
 
         Ok(results)
     }
+}
+
+impl Dictionary {
+    pub fn open(path: &str) -> Result<Self, Box<dyn Error>> {
+        let file = File::open(path)?;
+        let mmap = unsafe { Mmap::map(&file)? };
+        let map = Set::new(mmap)?;
+
+        Ok(Self {
+            map: map,
+            lev_builder: LevenshteinAutomatonBuilder::new(1, false),
+        })
+    }
+
+    pub fn search<'a>(&'a self, query: &str) -> SearchBuilder<'a> {
+        SearchBuilder::new(self, query)
+    }
 
     pub fn batch_search(
         &self,
@@ -115,7 +133,11 @@ impl Dictionary {
     ) -> Vec<Result<Vec<SearchResult>, Box<dyn Error + Send + Sync>>> {
         queries
             .par_iter()
-            .map(|&query| self.search(query).map_err(|e| e.to_string().into()))
+            .map(|&query| {
+                self.search(query)
+                    .execute()
+                    .map_err(|e| e.to_string().into())
+            })
             .collect()
     }
 }
@@ -147,25 +169,25 @@ mod tests {
 
     #[test]
     fn test_dictionary_search() {
-        let dict = create_test_dict(&["apple", "banana", "cherry"]);
+        let dict = create_test_dict(&["apple", "banana", "cherry", "lime", "time"]);
 
         // Exact match
-        let results = dict.search("apple").unwrap();
+        let results = dict.search("apple").execute().unwrap();
         let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
         assert_eq!(keys, vec!["apple"]);
 
         // Levenshtein distance of 1 (substitution)
-        let results = dict.search("baxana").unwrap();
+        let results = dict.search("baxana").execute().unwrap();
         let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
         assert_eq!(keys, vec!["banana"]);
 
         // Levenshtein distance of 1 (deletion/substitution)
-        let results = dict.search("cheriy").unwrap();
+        let results = dict.search("cheriy").execute().unwrap();
         let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
         assert_eq!(keys, vec!["cherry"]);
 
         // Out of bounds (> 1 distance)
-        let results = dict.search("ap").unwrap();
+        let results = dict.search("ap").execute().unwrap();
         assert!(results.is_empty());
     }
 
