@@ -63,6 +63,7 @@ pub struct SearchResult {
 pub struct SearchBuilder<'a> {
     dictionary: &'a Dictionary,
     query: String,
+    limit: usize,
 }
 
 impl<'a> SearchBuilder<'a> {
@@ -70,12 +71,18 @@ impl<'a> SearchBuilder<'a> {
         Self {
             dictionary,
             query: query.to_string(),
+            limit: 5,
         }
+    }
+
+    pub fn limit(mut self, limit: usize) -> Self {
+        self.limit = limit;
+        self
     }
 
     pub fn execute(self) -> Result<Vec<SearchResult>, Box<dyn Error>> {
         let dfa = FstDfaWrapper(self.dictionary.lev_builder.build_dfa(&self.query));
-        let mut heap = BinaryHeap::with_capacity(5);
+        let mut heap = BinaryHeap::with_capacity(self.limit);
         let query_bytes = self.query.as_bytes();
 
         let mut stream = self.dictionary.map.search(&dfa).into_stream();
@@ -84,7 +91,7 @@ impl<'a> SearchBuilder<'a> {
             let is_exact = key_bytes == query_bytes;
             let candidate = (Reverse(is_exact), key_bytes);
 
-            if heap.len() < 5 {
+            if heap.len() < self.limit {
                 heap.push((Reverse(is_exact), key_bytes.to_vec()));
             } else if let Some(mut worst) = heap.peek_mut() {
                 if candidate < (worst.0, worst.1.as_slice()) {
@@ -169,7 +176,7 @@ mod tests {
 
     #[test]
     fn test_dictionary_search() {
-        let dict = create_test_dict(&["apple", "banana", "cherry", "lime", "time"]);
+        let dict = create_test_dict(&["apple", "banana", "cherry", "lime", "time", "mime"]);
 
         // Exact match
         let results = dict.search("apple").execute().unwrap();
@@ -189,6 +196,11 @@ mod tests {
         // Out of bounds (> 1 distance)
         let results = dict.search("ap").execute().unwrap();
         assert!(results.is_empty());
+
+        // With limit of 3
+        let results = dict.search("mime").limit(3).execute().unwrap();
+        let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
+        assert_eq!(keys, vec!["mime", "lime", "time"]);
     }
 
     #[test]
