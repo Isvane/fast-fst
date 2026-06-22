@@ -1,11 +1,18 @@
 [package]
-name = "fast-fst"
+name = "fuzzies"
 version = "0.1.0"
 edition = "2024"
+description = "A fast, memory-mapped fuzzy search dictionary using FSTs and Levenshtein automata."
+license = "MIT"
+repository = "https://github.com/Isvane/fuzzies"
+documentation = "https://docs.rs/fuzzies"
+categories = ["algorithms", "data-structures"]
+readme = "README.md"
+keywords = ["fst", "levenshtein", "search"]
 
 [dependencies]
-fst = { version = "0.4.7" }
-levenshtein_automata = { version = "0.2.1", features = ["fst"] }
+fst = "0.4.7"
+levenshtein_automata = "0.2.1"
 memmap2 = "0.9.10"
 rayon = "1.12.0"
 

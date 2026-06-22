@@ -1,5 +1,5 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
-use fast_fst::{Dictionary, SearchResult};
+use fuzzies::{Dictionary, SearchResult};
 use std::hint::black_box;
 
 fn setup_bench_dictionary() -> (Dictionary, tempfile::NamedTempFile) {
