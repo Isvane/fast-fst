@@ -5,7 +5,6 @@ A high-performance fuzzy search library for Rust, leveraging Finite State Transd
 ## Installation
 
 ```bash
-# Add the dependency to your Cargo.toml
 cargo add fuzzies
 ```
 
@@ -13,7 +12,7 @@ cargo add fuzzies
 
 This library allows you to build a compact, memory-mapped FST from a file and perform fast, fuzzy searches (Levenshtein distance of 1).
 
-```rust
+```rust, no_run
 use fuzzies::Dictionary;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -32,7 +31,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     }
 
     // 4. Batch search (multithreaded)
-    let queries = vec!["aple", "banna", "cheri"];
+    let queries = vec!["aple", "baxana", "cherri"];
     let batch_results = dict.batch_search(&queries);
 
     Ok(())
