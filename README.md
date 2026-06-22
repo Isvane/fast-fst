@@ -32,8 +32,8 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 2. Load the dictionary
     let dict = Dictionary::open("words.fst")?;
 
-    // 3. Perform a fuzzy search
-    let results = dict.search("aple").execute()?;
+    // 3. Perform a fuzzy search with limit of 5 results
+    let results = dict.search("aple").limit(5).execute()?;
     
     for result in results {
         println!("Found: {} (Exact: {})", result.key, result.is_exact);
