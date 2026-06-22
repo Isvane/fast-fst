@@ -40,7 +40,8 @@ fn bench_searches(c: &mut Criterion) {
     for query in queries {
         group.bench_with_input(BenchmarkId::from_parameter(query), query, |b, q| {
             b.iter(|| {
-                let _res: Vec<SearchResult> = black_box(dict.search(black_box(q)).unwrap());
+                let _res: Vec<SearchResult> =
+                    black_box(dict.search(black_box(q)).execute().unwrap());
             });
         });
     }
