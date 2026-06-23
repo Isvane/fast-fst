@@ -36,8 +36,8 @@ impl fst::Automaton for FstDfaWrapper {
 
 /// A memory-mapped dictionary for fuzzy string lookups.
 pub struct Dictionary {
-    pub map: Set<Mmap>,
-    pub lev_builders: Vec<LevenshteinAutomatonBuilder>,
+    map: Set<Mmap>,
+    lev_builders: Vec<LevenshteinAutomatonBuilder>,
 }
 
 /// An individual match from a fuzzy search query.
