@@ -27,7 +27,7 @@ use fuzzies::Dictionary;
 fn main() -> Result<(), Box<dyn std::error::Error>> {
     // 1. Build the dictionary from a text file (one word per line)
     // Note: The input file must be sorted lexicographically
-    fuzzies::build("words.txt", "words.fst")?;
+    Dictionary::build("words.txt", "words.fst")?;
 
     // 2. Load the dictionary
     let dict = Dictionary::open("words.fst")?;

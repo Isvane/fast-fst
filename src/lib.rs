@@ -32,23 +32,6 @@ impl fst::Automaton for FstDfaWrapper {
     }
 }
 
-pub fn build(input_path: &str, output_path: &str) -> Result<(), Box<dyn Error>> {
-    let mut reader = BufReader::new(File::open(input_path)?);
-    let mut build = SetBuilder::new(BufWriter::new(File::create(output_path)?))?;
-    let mut line = String::new();
-
-    while reader.read_line(&mut line)? > 0 {
-        let trimmed = line.trim();
-        if !trimmed.is_empty() {
-            build.insert(trimmed)?;
-        }
-        line.clear();
-    }
-
-    build.finish()?;
-    Ok(())
-}
-
 pub struct Dictionary {
     pub map: Set<Mmap>,
     pub lev_builder: LevenshteinAutomatonBuilder,
@@ -128,6 +111,23 @@ impl Dictionary {
             map: map,
             lev_builder: LevenshteinAutomatonBuilder::new(1, false),
         })
+    }
+
+    pub fn build(input_path: &str, output_path: &str) -> Result<(), Box<dyn Error>> {
+        let mut reader = BufReader::new(File::open(input_path)?);
+        let mut build = SetBuilder::new(BufWriter::new(File::create(output_path)?))?;
+        let mut line = String::new();
+
+        while reader.read_line(&mut line)? > 0 {
+            let trimmed = line.trim();
+            if !trimmed.is_empty() {
+                build.insert(trimmed)?;
+            }
+            line.clear();
+        }
+
+        build.finish()?;
+        Ok(())
     }
 
     pub fn search<'a>(&'a self, query: &str) -> SearchBuilder<'a> {
