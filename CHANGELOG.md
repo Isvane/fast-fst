@@ -17,7 +17,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Other
 
 - accept generic impl AsRef<Path> in Dictionary::open and build ([#9](https://github.com/Isvane/fuzzies/pull/9))
-- *(build)* move build to a Dictionary ([#8](https://github.com/Isvane/fuzzies/pull/8))
+- *(build)* [**breaking**] move build to a Dictionary ([#8](https://github.com/Isvane/fuzzies/pull/8))
 - enhance README and update example ([#6](https://github.com/Isvane/fuzzies/pull/6))
 - add release-plz workflow ([#4](https://github.com/Isvane/fuzzies/pull/4))
 - include README in crate documentation ([#1](https://github.com/Isvane/fuzzies/pull/1))
