@@ -32,6 +32,11 @@ impl fst::Automaton for FstDfaWrapper {
     fn accept(&self, state: &Self::State, byte: u8) -> Self::State {
         self.0.transition(*state, byte)
     }
+
+    #[inline]
+    fn can_match(&self, state: &Self::State) -> bool {
+        *state != levenshtein_automata::SINK_STATE
+    }
 }
 
 /// A memory-mapped dictionary for fuzzy string lookups.
