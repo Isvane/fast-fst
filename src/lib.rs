@@ -35,7 +35,7 @@ impl fst::Automaton for FstDfaWrapper {
 
 pub struct Dictionary {
     pub map: Set<Mmap>,
-    pub lev_builder: LevenshteinAutomatonBuilder,
+    pub lev_builders: Vec<LevenshteinAutomatonBuilder>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
@@ -48,6 +48,7 @@ pub struct SearchBuilder<'a> {
     dictionary: &'a Dictionary,
     query: String,
     limit: usize,
+    distance: u8,
 }
 
 impl<'a> SearchBuilder<'a> {
@@ -56,6 +57,7 @@ impl<'a> SearchBuilder<'a> {
             dictionary,
             query: query.to_string(),
             limit: 5,
+            distance: 1,
         }
     }
 
@@ -64,8 +66,19 @@ impl<'a> SearchBuilder<'a> {
         self
     }
 
+    pub fn distance(mut self, distance: u8) -> Self {
+        self.distance = distance;
+        self
+    }
+
     pub fn execute(self) -> Result<Vec<SearchResult>, Box<dyn Error>> {
-        let dfa = FstDfaWrapper(self.dictionary.lev_builder.build_dfa(&self.query));
+        let dfa = if let Some(builder) = self.dictionary.lev_builders.get(self.distance as usize) {
+            FstDfaWrapper(builder.build_dfa(&self.query))
+        } else {
+            let builder = LevenshteinAutomatonBuilder::new(self.distance, false);
+            FstDfaWrapper(builder.build_dfa(&self.query))
+        };
+
         let mut heap = BinaryHeap::with_capacity(self.limit);
         let query_bytes = self.query.as_bytes();
 
@@ -108,10 +121,11 @@ impl Dictionary {
         let mmap = unsafe { Mmap::map(&file)? };
         let map = Set::new(mmap)?;
 
-        Ok(Self {
-            map: map,
-            lev_builder: LevenshteinAutomatonBuilder::new(1, false),
-        })
+        let lev_builders = (0..=2)
+            .map(|d| LevenshteinAutomatonBuilder::new(d, false))
+            .collect();
+
+        Ok(Self { map, lev_builders })
     }
 
     pub fn build(
@@ -173,9 +187,13 @@ mod tests {
         mmap.copy_from_slice(&buffer);
         let mmap = mmap.make_read_only().unwrap();
 
+        let lev_builders = (0..=2)
+            .map(|d| LevenshteinAutomatonBuilder::new(d, false))
+            .collect();
+
         Dictionary {
             map: Set::new(mmap).unwrap(),
-            lev_builder: LevenshteinAutomatonBuilder::new(1, false),
+            lev_builders,
         }
     }
 
@@ -197,6 +215,11 @@ mod tests {
         let results = dict.search("cheriy").execute().unwrap();
         let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
         assert_eq!(keys, vec!["cherry"]);
+
+        // Dynamic distance of 2
+        let results = dict.search("baxaxa").distance(2).execute().unwrap();
+        let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
+        assert_eq!(keys, vec!["banana"]);
 
         // Out of bounds (> 1 distance)
         let results = dict.search("ap").execute().unwrap();
