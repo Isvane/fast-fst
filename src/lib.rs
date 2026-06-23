@@ -12,6 +12,7 @@ use levenshtein_automata::{DFA, Distance, LevenshteinAutomatonBuilder};
 use memmap2::Mmap;
 use rayon::prelude::*;
 
+/// A wrapper implementing [`fst::Automaton`] for a Levenshtein [`DFA`].
 pub struct FstDfaWrapper(pub DFA);
 
 impl fst::Automaton for FstDfaWrapper {
@@ -33,17 +34,22 @@ impl fst::Automaton for FstDfaWrapper {
     }
 }
 
+/// A memory-mapped dictionary for fuzzy string lookups.
 pub struct Dictionary {
     pub map: Set<Mmap>,
     pub lev_builders: Vec<LevenshteinAutomatonBuilder>,
 }
 
+/// An individual match from a fuzzy search query.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SearchResult {
+    /// Indicates if the candidate matches the query exactly (distance of 0).
     pub is_exact: bool,
+    /// The matched text from the dictionary.
     pub key: String,
 }
 
+/// A builder for configuring and running a dictionary search query.
 pub struct SearchBuilder<'a> {
     dictionary: &'a Dictionary,
     query: String,
@@ -52,6 +58,7 @@ pub struct SearchBuilder<'a> {
 }
 
 impl<'a> SearchBuilder<'a> {
+    /// Create a new [`SearchBuilder`] with default limits (5) and distance (1).
     pub fn new(dictionary: &'a Dictionary, query: &str) -> Self {
         Self {
             dictionary,
@@ -61,16 +68,19 @@ impl<'a> SearchBuilder<'a> {
         }
     }
 
+    /// Set the maximum number of results to return.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
+    /// Set the maximum Levenshtein distance allowed for typos.
     pub fn distance(mut self, distance: u8) -> Self {
         self.distance = distance;
         self
     }
 
+    /// Execute the fuzzy search query.
     pub fn execute(self) -> Result<Vec<SearchResult>, Box<dyn Error>> {
         let dfa = if let Some(builder) = self.dictionary.lev_builders.get(self.distance as usize) {
             FstDfaWrapper(builder.build_dfa(&self.query))
@@ -116,6 +126,7 @@ impl<'a> SearchBuilder<'a> {
 }
 
 impl Dictionary {
+    /// Open an existing compiled FST dictionary file via memory mapping.
     pub fn open(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         let file = File::open(path)?;
         let mmap = unsafe { Mmap::map(&file)? };
@@ -128,6 +139,11 @@ impl Dictionary {
         Ok(Self { map, lev_builders })
     }
 
+    /// Compile a line-delimited text file into an immutable binary FST file.
+    ///
+    /// # Note
+    ///
+    /// The input text file lines must be sorted in lexicographical byte order.
     pub fn build(
         input_path: impl AsRef<Path>,
         output_path: impl AsRef<Path>,
@@ -148,10 +164,12 @@ impl Dictionary {
         Ok(())
     }
 
+    /// Create a search query builder for this dictionary.
     pub fn search<'a>(&'a self, query: &str) -> SearchBuilder<'a> {
         SearchBuilder::new(self, query)
     }
 
+    /// Run multiple search queries concurrently using a parallel thread pool.
     pub fn batch_search(
         &self,
         queries: &[&str],
