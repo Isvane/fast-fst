@@ -34,8 +34,8 @@ impl fst::Automaton for FstDfaWrapper {
 }
 
 pub struct Dictionary {
-    pub map: Set<Mmap>,
-    pub lev_builders: Vec<LevenshteinAutomatonBuilder>,
+    map: Set<Mmap>,
+    lev_builders: Vec<LevenshteinAutomatonBuilder>,
 }
 
 #[derive(Debug, Clone, Eq, PartialEq)]
