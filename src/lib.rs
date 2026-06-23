@@ -5,6 +5,7 @@ use std::collections::BinaryHeap;
 use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter};
+use std::path::Path;
 
 use fst::{IntoStreamer, Set, SetBuilder, Streamer};
 use levenshtein_automata::{DFA, Distance, LevenshteinAutomatonBuilder};
@@ -102,7 +103,7 @@ impl<'a> SearchBuilder<'a> {
 }
 
 impl Dictionary {
-    pub fn open(path: &str) -> Result<Self, Box<dyn Error>> {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         let file = File::open(path)?;
         let mmap = unsafe { Mmap::map(&file)? };
         let map = Set::new(mmap)?;
@@ -113,7 +114,10 @@ impl Dictionary {
         })
     }
 
-    pub fn build(input_path: &str, output_path: &str) -> Result<(), Box<dyn Error>> {
+    pub fn build(
+        input_path: impl AsRef<Path>,
+        output_path: impl AsRef<Path>,
+    ) -> Result<(), Box<dyn Error>> {
         let mut reader = BufReader::new(File::open(input_path)?);
         let mut build = SetBuilder::new(BufWriter::new(File::create(output_path)?))?;
         let mut line = String::new();
@@ -152,6 +156,7 @@ impl Dictionary {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::io::Write;
 
     fn create_test_dict(words: &[&str]) -> Dictionary {
         let mut sorted = words.to_vec();
@@ -228,5 +233,46 @@ mod tests {
                 assert_eq!(matches[0].is_exact, false);
             }
         }
+    }
+
+    #[test]
+    fn test_path_generics() {
+        let mut source_file = tempfile::NamedTempFile::new().unwrap();
+        writeln!(source_file, "apple\nbanana\ncherry").unwrap();
+
+        let target_dir = tempfile::tempdir().unwrap();
+        let target_fst_path = target_dir.path().join("dict.fst");
+
+        // === Test Dictionary::build with various types matching `impl AsRef<Path>` ===
+
+        // Using &NamedTempFile and &PathBuf
+        Dictionary::build(&source_file, &target_fst_path).unwrap();
+        assert!(target_fst_path.exists());
+
+        // Using &Path and PathBuf (moving the target path)
+        let source_path: &std::path::Path = source_file.path();
+        Dictionary::build(source_path, target_fst_path.clone()).unwrap();
+
+        // Using &str and String representations
+        let source_str: &str = source_path.to_str().unwrap();
+        let target_string: String = target_fst_path.to_str().unwrap().to_string();
+        Dictionary::build(source_str, &target_string).unwrap();
+
+        // === Test Dictionary::open with various types matching `impl AsRef<Path>` ===
+
+        // Test with &PathBuf
+        let dict1 = Dictionary::open(&target_fst_path).unwrap();
+        assert_eq!(dict1.search("apple").execute().unwrap().len(), 1);
+
+        // Test with owned PathBuf
+        let dict2 = Dictionary::open(target_fst_path.clone()).unwrap();
+        assert_eq!(dict2.search("baxana").execute().unwrap()[0].key, "banana");
+
+        // Test with string primitives (&str and String)
+        let dict3 = Dictionary::open(target_string.as_str()).unwrap();
+        assert_eq!(dict3.search("cheriy").execute().unwrap().len(), 1);
+
+        let dict4 = Dictionary::open(target_string).unwrap();
+        assert!(!dict4.search("cherry").execute().unwrap().is_empty());
     }
 }
