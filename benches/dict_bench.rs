@@ -1,6 +1,7 @@
 use criterion::{BenchmarkId, Criterion, criterion_group, criterion_main};
 use fuzzies::{Dictionary, SearchResult};
 use std::hint::black_box;
+use std::time::Duration;
 
 fn setup_bench_dictionary() -> (Dictionary, tempfile::NamedTempFile) {
     use fst::SetBuilder;
@@ -34,32 +35,50 @@ fn setup_bench_dictionary() -> (Dictionary, tempfile::NamedTempFile) {
 fn bench_searches(c: &mut Criterion) {
     let (dict, _temp) = setup_bench_dictionary();
 
-    let mut group = c.benchmark_group("Dictionary Single Search");
-
+    // --- Single Search Group ---
+    let mut single_group = c.benchmark_group("Dictionary Single Search");
     let queries = vec!["apple", "baxana", "missingword"];
     for query in queries {
-        group.bench_with_input(BenchmarkId::from_parameter(query), query, |b, q| {
+        single_group.bench_with_input(BenchmarkId::from_parameter(query), query, |b, q| {
             b.iter(|| {
                 let _res: Vec<SearchResult> =
                     black_box(dict.search(black_box(q)).execute().unwrap());
             });
         });
     }
-    group.finish();
+    single_group.finish();
 
+    // --- Batch Search Group (100, 500, 1000) ---
     let mut batch_group = c.benchmark_group("Dictionary Batch Search");
 
-    let batch_queries: Vec<&str> = (0..500)
-        .map(|i| if i % 2 == 0 { "word0050" } else { "baxana" })
-        .collect();
+    let batch_sizes = vec![100, 500, 1000];
 
-    batch_group.bench_function("Rayon Parallel Batch (500 queries)", |b| {
-        b.iter(|| {
-            let _res = black_box(dict.batch_search(black_box(&batch_queries)));
-        });
-    });
+    for size in batch_sizes {
+        // Generate the queries dynamically based on the current batch size
+        let batch_queries: Vec<&str> = (0..size)
+            .map(|i| if i % 2 == 0 { "word0050" } else { "baxana" })
+            .collect();
+
+        batch_group.bench_with_input(
+            BenchmarkId::new("Rayon Parallel Batch", size),
+            &batch_queries,
+            |b, queries| {
+                b.iter(|| {
+                    let _res = black_box(dict.batch_search(black_box(queries)));
+                });
+            },
+        );
+    }
     batch_group.finish();
 }
 
-criterion_group!(benches, bench_searches);
+fn configured_criterion() -> Criterion {
+    Criterion::default().measurement_time(Duration::from_secs(10))
+}
+
+criterion_group!(
+    name = benches;
+    config = configured_criterion();
+    targets = bench_searches
+);
 criterion_main!(benches);
