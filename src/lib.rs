@@ -7,7 +7,7 @@ use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
-use fst::{IntoStreamer, Set, SetBuilder, Streamer};
+use fst::{Automaton, IntoStreamer, Set, SetBuilder, Streamer};
 use levenshtein_automata::{DFA, Distance, LevenshteinAutomatonBuilder};
 use memmap2::Mmap;
 use rayon::prelude::*;
@@ -95,28 +95,35 @@ impl<'a> SearchBuilder<'a> {
         };
 
         let mut heap = BinaryHeap::with_capacity(self.limit);
-        let query_bytes = self.query.as_bytes();
-
         let mut stream = self.dictionary.map.search(&dfa).into_stream();
 
         while let Some(key_bytes) = stream.next() {
-            let is_exact = key_bytes == query_bytes;
-            let candidate = (Reverse(is_exact), key_bytes);
+            let mut state = dfa.start();
+            for &byte in key_bytes {
+                state = dfa.accept(&state, byte);
+            }
+
+            let dist = match dfa.0.distance(state) {
+                levenshtein_automata::Distance::Exact(d) => d,
+                _ => self.distance,
+            };
+
+            let candidate = (dist, key_bytes);
 
             if heap.len() < self.limit {
-                heap.push((Reverse(is_exact), key_bytes.to_vec()));
+                heap.push((dist, key_bytes.to_vec()));
             } else if let Some(mut worst) = heap.peek_mut()
                 && candidate < (worst.0, worst.1.as_slice())
             {
-                *worst = (Reverse(is_exact), key_bytes.to_vec());
+                *worst = (dist, key_bytes.to_vec());
             }
         }
 
         let mut results: Vec<_> = heap
             .into_iter()
-            .map(|(Reverse(is_exact), bytes)| {
+            .map(|(dist, bytes)| {
                 Ok(SearchResult {
-                    is_exact,
+                    is_exact: dist == 0,
                     key: String::from_utf8(bytes)?,
                 })
             })
@@ -311,8 +318,11 @@ mod tests {
     #[test]
     fn test_dictionary_sort() {
         // Create an unsorted temporary file
+        let input_words = vec!["ßé", "àé", "äb"];
         let mut source_file = tempfile::NamedTempFile::new().unwrap();
-        writeln!(source_file, "cherry\napple\nbanana\nlime").unwrap();
+        for word in &input_words {
+            writeln!(source_file, "{}", word).unwrap();
+        }
 
         // Execute the in-place sort
         Dictionary::sort(source_file.path()).unwrap();
@@ -325,12 +335,7 @@ mod tests {
         // Verify it matches lexicographical byte order
         assert_eq!(
             sorted_lines,
-            vec![
-                "apple".to_string(),
-                "banana".to_string(),
-                "cherry".to_string(),
-                "lime".to_string()
-            ]
+            vec!["ßé".to_string(), "àé".to_string(), "äb".to_string(),]
         );
     }
 
@@ -373,5 +378,16 @@ mod tests {
 
         let dict4 = Dictionary::open(target_string).unwrap();
         assert!(!dict4.search("cherry").execute().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_distance_priority_over_alphabetical() {
+        let dict = create_test_dict(&["east", "fest"]);
+
+        let results = dict.search("test").distance(2).limit(1).execute().unwrap();
+        let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
+
+        // "fest" should win because a distance of 1 is a better match than 2.
+        assert_eq!(keys, vec!["fest"]);
     }
 }
