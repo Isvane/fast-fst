@@ -106,9 +106,10 @@ impl<'a> SearchBuilder<'a> {
             if heap.len() < self.limit {
                 heap.push((Reverse(is_exact), key_bytes.to_vec()));
             } else if let Some(mut worst) = heap.peek_mut()
-                && candidate < (worst.0, worst.1.as_slice()) {
-                    *worst = (Reverse(is_exact), key_bytes.to_vec());
-                }
+                && candidate < (worst.0, worst.1.as_slice())
+            {
+                *worst = (Reverse(is_exact), key_bytes.to_vec());
+            }
         }
 
         let mut results: Vec<_> = heap
