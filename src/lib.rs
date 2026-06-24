@@ -104,7 +104,7 @@ impl<'a> SearchBuilder<'a> {
             }
 
             let dist = match dfa.0.distance(state) {
-                levenshtein_automata::Distance::Exact(d) => d as u8,
+                levenshtein_automata::Distance::Exact(d) => d,
                 _ => self.distance,
             };
 
