@@ -7,6 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1](https://github.com/Isvane/fuzzies/compare/v0.2.0...v0.2.1) - 2026-06-24
+
+### Added
+
+- *(dictionary)* add in-place text file sorting helper and tests ([#18](https://github.com/Isvane/fuzzies/pull/18))
+
+### Other
+
+- add GitHub Actions CI workflow for Rust ([#17](https://github.com/Isvane/fuzzies/pull/17))
+- *(benches)* update benchmark ([#16](https://github.com/Isvane/fuzzies/pull/16))
+- add can_match to prune dead branches ([#14](https://github.com/Isvane/fuzzies/pull/14))
+
 ## [0.2.0](https://github.com/Isvane/fuzzies/compare/v0.1.0...v0.2.0) - 2026-06-23
 
 ### Added
