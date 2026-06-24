@@ -4,7 +4,7 @@ use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::error::Error;
 use std::fs::File;
-use std::io::{BufRead, BufReader, BufWriter};
+use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
 
 use fst::{IntoStreamer, Set, SetBuilder, Streamer};
@@ -144,6 +144,33 @@ impl Dictionary {
         Ok(Self { map, lev_builders })
     }
 
+    /// Sorts a line-delimited text file in-place in lexicographical byte order.
+    /// This prepares an unsorted text file to be compatible with [`Dictionary::build`].
+    ///
+    /// # Warning
+    ///
+    /// This function reads the entire contents of the file into system memory (RAM). It is
+    /// **not suitable for large dictionaries** and may cause out-of-memory panics if the file size
+    /// exceeds available memory. For large datasets, users should pre-sort the file via external
+    /// means—such as the standard command-line `sort` utility—before processing.
+    pub fn sort(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
+        let path = path.as_ref();
+        let file = File::open(path)?;
+        let reader = BufReader::new(file);
+
+        let mut contents: Vec<String> = reader.lines().collect::<Result<Vec<_>, _>>()?;
+        contents.sort_unstable();
+
+        let file = File::create(path)?;
+        let mut writer = BufWriter::new(file);
+
+        for content in contents {
+            writeln!(writer, "{}", content)?;
+        }
+
+        Ok(())
+    }
+
     /// Compile a line-delimited text file into an immutable binary FST file.
     ///
     /// # Note
@@ -222,7 +249,7 @@ mod tests {
 
     #[test]
     fn test_dictionary_search() {
-        let dict = create_test_dict(&["apple", "banana", "cherry", "lime", "time", "mime"]);
+        let dict = create_test_dict(&["apple", "banana", "lime", "time", "mime", "cherry"]);
 
         // Exact match
         let results = dict.search("apple").execute().unwrap();
@@ -279,6 +306,32 @@ mod tests {
                 assert_eq!(matches[0].is_exact, false);
             }
         }
+    }
+
+    #[test]
+    fn test_dictionary_sort() {
+        // Create an unsorted temporary file
+        let mut source_file = tempfile::NamedTempFile::new().unwrap();
+        writeln!(source_file, "cherry\napple\nbanana\nlime").unwrap();
+
+        // Execute the in-place sort
+        Dictionary::sort(source_file.path()).unwrap();
+
+        // Read the file back to verify the final order
+        let file = File::open(source_file.path()).unwrap();
+        let reader = BufReader::new(file);
+        let sorted_lines: Vec<String> = reader.lines().collect::<Result<Vec<_>, _>>().unwrap();
+
+        // Verify it matches lexicographical byte order
+        assert_eq!(
+            sorted_lines,
+            vec![
+                "apple".to_string(),
+                "banana".to_string(),
+                "cherry".to_string(),
+                "lime".to_string()
+            ]
+        );
     }
 
     #[test]
