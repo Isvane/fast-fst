@@ -52,6 +52,8 @@ pub struct SearchResult {
     pub is_exact: bool,
     /// The matched text from the dictionary.
     pub key: String,
+    /// The calculated Levenshtein distance between the query and this key.
+    pub distance: u8,
 }
 
 /// A builder for configuring and running a dictionary search query.
@@ -125,12 +127,17 @@ impl<'a> SearchBuilder<'a> {
                 Ok(SearchResult {
                     is_exact: dist == 0,
                     key: String::from_utf8(bytes)?,
+                    distance: dist,
                 })
             })
             .collect::<Result<_, Box<dyn Error>>>()?;
 
         results.sort_unstable_by(|a, b| {
-            (Reverse(a.is_exact), &a.key).cmp(&(Reverse(b.is_exact), &b.key))
+            (Reverse(a.is_exact), &a.distance, &a.key).cmp(&(
+                Reverse(b.is_exact),
+                &b.distance,
+                &b.key,
+            ))
         });
 
         Ok(results)
@@ -384,10 +391,10 @@ mod tests {
     fn test_distance_priority_over_alphabetical() {
         let dict = create_test_dict(&["east", "fest"]);
 
-        let results = dict.search("test").distance(2).limit(1).execute().unwrap();
+        let results = dict.search("test").distance(2).limit(2).execute().unwrap();
         let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
 
-        // "fest" should win because a distance of 1 is a better match than 2.
-        assert_eq!(keys, vec!["fest"]);
+        // "fest" should come first a distance of 1 is a better match than 2.
+        assert_eq!(keys, vec!["fest", "east"]);
     }
 }
