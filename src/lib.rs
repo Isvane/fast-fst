@@ -11,7 +11,7 @@ use levenshtein_automata::{DFA, Distance, LevenshteinAutomatonBuilder};
 use memmap2::Mmap;
 use rayon::prelude::*;
 
-/// A wrapper implementing [`fst::Automaton`] for a Levenshtein [`DFA`].
+/// Adapts a Levenshtein [`DFA`] to the [`fst::Automaton`] trait ecosystem.
 pub struct FstDfaWrapper(pub DFA);
 
 impl fst::Automaton for FstDfaWrapper {
@@ -38,24 +38,24 @@ impl fst::Automaton for FstDfaWrapper {
     }
 }
 
-/// A memory-mapped dictionary for fuzzy string lookups.
+/// Memory-mapped FST dictionary for fuzzy string lookups.
 pub struct Dictionary {
     map: Set<Mmap>,
     lev_builders: Vec<LevenshteinAutomatonBuilder>,
 }
 
-/// An individual match from a fuzzy search query.
+/// A matched item from a fuzzy search.
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct SearchResult {
-    /// Indicates if the candidate matches the query exactly (distance of 0).
+    /// True if Levenshtein distance is 0.
     pub is_exact: bool,
-    /// The matched text from the dictionary.
+    /// The matched string.
     pub key: String,
-    /// The calculated Levenshtein distance between the query and this key.
+    /// Levenshtein distance to the query.
     pub distance: u8,
 }
 
-/// A builder for configuring and running a dictionary search query.
+/// Query builder for configuring fuzzy searches.
 pub struct SearchBuilder<'a> {
     dictionary: &'a Dictionary,
     query: String,
@@ -64,7 +64,7 @@ pub struct SearchBuilder<'a> {
 }
 
 impl<'a> SearchBuilder<'a> {
-    /// Create a new [`SearchBuilder`] with default limits (5) and distance (1).
+    /// Defaults: `limit = 5`, `distance = 1`.
     pub fn new(dictionary: &'a Dictionary, query: &str) -> Self {
         Self {
             dictionary,
@@ -74,19 +74,19 @@ impl<'a> SearchBuilder<'a> {
         }
     }
 
-    /// Set the maximum number of results to return.
+    /// Max number of results to return.
     pub fn limit(mut self, limit: usize) -> Self {
         self.limit = limit;
         self
     }
 
-    /// Set the maximum Levenshtein distance allowed for typos.
+    /// Max allowed Levenshtein distance.
     pub fn distance(mut self, distance: u8) -> Self {
         self.distance = distance;
         self
     }
 
-    /// Execute the fuzzy search query.
+    /// Evaluates the fuzzy search against the FST.
     pub fn execute(self) -> Result<Vec<SearchResult>, Box<dyn Error>> {
         let dfa = if let Some(builder) = self.dictionary.lev_builders.get(self.distance as usize) {
             FstDfaWrapper(builder.build_dfa(&self.query))
@@ -139,15 +139,14 @@ impl<'a> SearchBuilder<'a> {
 }
 
 impl Dictionary {
-    /// Open an existing compiled FST dictionary file via memory mapping.
+    /// Memory-maps an existing compiled FST file.
     ///
     /// # Examples
-    ///
     /// ```no_run
     /// # use std::error::Error;
     /// # use fuzzies::Dictionary;
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// let dict = Dictionary::open("path/to/dictionary.fst")?;
+    /// let dict = Dictionary::open("dict.fst")?;
     /// # Ok(())
     /// # }
     /// ```
@@ -163,15 +162,19 @@ impl Dictionary {
         Ok(Self { map, lev_builders })
     }
 
-    /// Sorts a line-delimited text file in-place in lexicographical byte order.
-    /// This prepares an unsorted text file to be compatible with [`Dictionary::build`].
+    /// Sorts a newline-delimited text file in-place by byte order.
+    ///
+    /// Prepares raw source text for processing by [`Self::build`].
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use fuzzies::Dictionary;
+    /// Dictionary::sort("unsorted_words.txt")?;
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     ///
     /// # Warning
-    ///
-    /// This function reads the entire contents of the file into system memory (RAM). It is
-    /// **not suitable for large dictionaries** and may cause out-of-memory panics if the file size
-    /// exceeds available memory. For large datasets, users should pre-sort the file via external
-    /// means—such as the standard command-line `sort` utility—before processing.
+    /// Loads the entire file into memory. Use an external CLI utility like `sort` for massive datasets.
     pub fn sort(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
         let path = path.as_ref();
         let file = File::open(path)?;
@@ -190,11 +193,7 @@ impl Dictionary {
         Ok(())
     }
 
-    /// Compile a line-delimited text file into an immutable binary FST file.
-    ///
-    /// # Note
-    ///
-    /// The input text file lines must be sorted in lexicographical byte order.
+    /// Compiles a byte-sorted text file into an immutable binary FST.
     pub fn build(
         input_path: impl AsRef<Path>,
         output_path: impl AsRef<Path>,
@@ -215,16 +214,14 @@ impl Dictionary {
         Ok(())
     }
 
-    /// Create a search query builder for this dictionary.
+    /// Initializes a fuzzy search query builder.
     ///
     /// # Examples
-    ///
     /// ```no_run
     /// # use std::error::Error;
     /// # use fuzzies::Dictionary;
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// let dict = Dictionary::open("path/to/dictionary.fst")?;
-    ///
+    /// # let dict = Dictionary::open("dict.fst")?;
     /// let results = dict.search("baxana")
     ///     .distance(2)
     ///     .limit(5)
@@ -236,7 +233,15 @@ impl Dictionary {
         SearchBuilder::new(self, query)
     }
 
-    /// Run multiple search queries concurrently using a parallel thread pool.
+    /// Executes multiple search queries concurrently via Rayon.
+    ///
+    /// # Examples
+    /// ```no_run
+    /// # use fuzzies::Dictionary;
+    /// # let dict = Dictionary::open("dict.fst")?;
+    /// let batch_results = dict.batch_search(&["baxana", "appl", "cheriy"]);
+    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// ```
     pub fn batch_search(
         &self,
         queries: &[&str],
