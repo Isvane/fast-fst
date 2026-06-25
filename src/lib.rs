@@ -1,6 +1,5 @@
 #![doc = include_str!("../README.md")]
 
-use std::cmp::Reverse;
 use std::collections::BinaryHeap;
 use std::error::Error;
 use std::fs::File;
@@ -132,13 +131,8 @@ impl<'a> SearchBuilder<'a> {
             })
             .collect::<Result<_, Box<dyn Error>>>()?;
 
-        results.sort_unstable_by(|a, b| {
-            (Reverse(a.is_exact), &a.distance, &a.key).cmp(&(
-                Reverse(b.is_exact),
-                &b.distance,
-                &b.key,
-            ))
-        });
+        results
+            .sort_unstable_by(|a, b| a.distance.cmp(&b.distance).then_with(|| a.key.cmp(&b.key)));
 
         Ok(results)
     }
