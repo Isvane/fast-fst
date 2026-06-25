@@ -1,0 +1,22 @@
+[workspace]
+git_release_body = """
+{{ changelog }}
+
+{% if remote.contributors %}
+### 🤝 Contributors
+A huge thank you to everyone who contributed to this release:
+{% for contributor in remote.contributors %}
+* @{{ contributor.username }}
+{% endfor %}
+{% endif %}
+"""
+
+[changelog]
+commit_parsers = [
+  { message = "^feat", group = "Added" },
+  { message = "^fix", group = "Fixed" },
+  { message = "^refactor", group = "Refactored" },
+  { message = "^ci", group = "Continuous Integration" },
+  { message = "^docs", group = "Documentation" },
+  { message = ".*", group = "Other" }
+]
