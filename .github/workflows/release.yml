@@ -12,6 +12,9 @@ jobs:
     permissions:
       contents: write
       pull-requests: write
+    env:
+      CARGO_NET_RETRY: 10
+      CARGO_HTTP_MULTIPLEXING: "false"
 
     steps:
       - name: Checkout repository
@@ -21,6 +24,9 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+
+      - name: Rust Cache
+        uses: swatinem/rust-cache@v2
 
       - name: Run release-plz
         uses: release-plz/action@v0.5
