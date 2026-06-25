@@ -146,6 +146,17 @@ impl<'a> SearchBuilder<'a> {
 
 impl Dictionary {
     /// Open an existing compiled FST dictionary file via memory mapping.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::error::Error;
+    /// # use fuzzies::Dictionary;
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// let dict = Dictionary::open("path/to/dictionary.fst")?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn open(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
         let file = File::open(path)?;
         let mmap = unsafe { Mmap::map(&file)? };
@@ -211,6 +222,22 @@ impl Dictionary {
     }
 
     /// Create a search query builder for this dictionary.
+    ///
+    /// # Examples
+    ///
+    /// ```no_run
+    /// # use std::error::Error;
+    /// # use fuzzies::Dictionary;
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// let dict = Dictionary::open("path/to/dictionary.fst")?;
+    ///
+    /// let results = dict.search("baxana")
+    ///     .distance(2)
+    ///     .limit(5)
+    ///     .execute()?;
+    /// # Ok(())
+    /// # }
+    /// ```
     pub fn search<'a>(&'a self, query: &str) -> SearchBuilder<'a> {
         SearchBuilder::new(self, query)
     }
