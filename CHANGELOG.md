@@ -11,12 +11,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
-- *(search)* fix sorting by distance bug ([#25](https://github.com/Isvane/fuzzies/pull/25))
+- *(search) [**breaking**] fix sorting by distance bug ([#25](https://github.com/Isvane/fuzzies/pull/25))
 - *(search)* prioritize Levenshtein distance over alphabetical order ([#22](https://github.com/Isvane/fuzzies/pull/22))
 
 ### Other
 
 - add example for dictionary method ([#26](https://github.com/Isvane/fuzzies/pull/26))
+- remove redundant logic ([#27](https://github.com/Isvane/fuzzies/pull/27)
 
 ## [0.2.1](https://github.com/Isvane/fuzzies/compare/v0.2.0...v0.2.1) - 2026-06-24
 
