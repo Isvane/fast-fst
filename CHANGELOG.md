@@ -7,6 +7,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.3.0](https://github.com/Isvane/fuzzies/compare/v0.2.1...v0.3.0) - 2026-06-25
+
+### Fixed
+
+- *(search)* fix sorting by distance bug ([#25](https://github.com/Isvane/fuzzies/pull/25))
+- *(search)* prioritize Levenshtein distance over alphabetical order ([#22](https://github.com/Isvane/fuzzies/pull/22))
+
+### Other
+
+- add example for dictionary method ([#26](https://github.com/Isvane/fuzzies/pull/26))
+
 ## [0.2.1](https://github.com/Isvane/fuzzies/compare/v0.2.0...v0.2.1) - 2026-06-24
 
 ### Added
