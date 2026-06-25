@@ -56,3 +56,30 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
     Ok(())
 }
 ```
+
+## Performance
+
+The following benchmarks were gathered using Criterion to evaluate lookup speeds for single and parallel batch searches.
+You can re-run these benchmarks on your hardware using `cargo bench`.
+
+## Single Search Performance
+
+| Query                      | Execution Time (Avg) |
+|---------------------------|----------------------|
+| apple (Exact/Close match) | ~3.87 µs             |
+| baxana (Fuzzy match)      | ~4.85 µs             |
+| missingword (No match)    | ~8.93 µs             |
+
+## Batch Search Performance
+
+| Batch Size  | Total Execution Time | Per-Query Avg |
+|------------|----------------------|---------------|
+| 100 queries | ~302.6 µs           | ~3.02 µs      |
+| 500 queries | ~1.42 ms            | ~2.84 µs      |
+| 1000 queries| ~2.84 ms            | ~2.84 µs      |
+
+*Note: Benchmarks were executed on an **Intel Core i5-10300H (4 cores, 8 threads, Battery set to HIgh Performance mode)**. Performance may scale significantly higher on more modern or high-end desktop/server CPUs.*
+
+## License
+
+This project is licensed under the [MIT license.](LICENSE)
