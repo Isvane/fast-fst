@@ -80,7 +80,7 @@ impl<'a> SearchBuilder<'a> {
         self
     }
 
-    /// Max allowed Levenshtein distance.
+    /// Sets the maximum Levenshtein distance for fuzzy searching (hard-capped at 2).
     pub fn distance(mut self, distance: u8) -> Self {
         self.distance = distance.min(2);
         self
