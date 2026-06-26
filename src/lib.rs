@@ -80,20 +80,16 @@ impl<'a> SearchBuilder<'a> {
         self
     }
 
-    /// Max allowed Levenshtein distance.
+    /// Sets the maximum Levenshtein distance for fuzzy searching (hard-capped at 2).
     pub fn distance(mut self, distance: u8) -> Self {
-        self.distance = distance;
+        self.distance = distance.min(2);
         self
     }
 
     /// Evaluates the fuzzy search against the FST.
     pub fn execute(self) -> Result<Vec<SearchResult>, Box<dyn Error>> {
-        let dfa = if let Some(builder) = self.dictionary.lev_builders.get(self.distance as usize) {
-            FstDfaWrapper(builder.build_dfa(&self.query))
-        } else {
-            let builder = LevenshteinAutomatonBuilder::new(self.distance, false);
-            FstDfaWrapper(builder.build_dfa(&self.query))
-        };
+        let builder = &self.dictionary.lev_builders[self.distance as usize];
+        let dfa = FstDfaWrapper(builder.build_dfa(&self.query));
 
         let mut heap = BinaryHeap::with_capacity(self.limit);
         let mut stream = self.dictionary.map.search(&dfa).into_stream();
@@ -351,7 +347,7 @@ mod tests {
     #[test]
     fn test_dictionary_sort() {
         // Create an unsorted temporary file
-        let input_words = vec!["ßé", "àé", "äb"];
+        let input_words = vec!["ßé", "àé", "🤣"];
         let mut source_file = tempfile::NamedTempFile::new().unwrap();
         for word in &input_words {
             writeln!(source_file, "{}", word).unwrap();
@@ -368,7 +364,7 @@ mod tests {
         // Verify it matches lexicographical byte order
         assert_eq!(
             sorted_lines,
-            vec!["ßé".to_string(), "àé".to_string(), "äb".to_string(),]
+            vec!["ßé".to_string(), "àé".to_string(), "🤣".to_string(),]
         );
     }
 
