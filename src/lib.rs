@@ -1,7 +1,6 @@
 #![doc = include_str!("../README.md")]
 
 use std::collections::BinaryHeap;
-use std::error::Error;
 use std::fs::File;
 use std::io::{BufRead, BufReader, BufWriter, Write};
 use std::path::Path;
@@ -10,6 +9,18 @@ use fst::{Automaton, IntoStreamer, Set, SetBuilder, Streamer};
 use levenshtein_automata::{DFA, Distance, LevenshteinAutomatonBuilder};
 use memmap2::Mmap;
 use rayon::prelude::*;
+
+#[derive(thiserror::Error, Debug)]
+pub enum DictionaryError {
+    #[error("I/O error: {0}")]
+    Io(#[from] std::io::Error),
+
+    #[error("FST error: {0}")]
+    Fst(#[from] fst::Error),
+
+    #[error("Invalid UTF-8 sequence: {0}")]
+    Utf8(#[from] std::string::FromUtf8Error),
+}
 
 /// Adapts a Levenshtein [`DFA`] to the [`fst::Automaton`] trait ecosystem.
 pub struct FstDfaWrapper(pub DFA);
@@ -87,7 +98,7 @@ impl<'a> SearchBuilder<'a> {
     }
 
     /// Evaluates the fuzzy search against the FST.
-    pub fn execute(self) -> Result<Vec<SearchResult>, Box<dyn Error>> {
+    pub fn execute(self) -> Result<Vec<SearchResult>, DictionaryError> {
         let builder = &self.dictionary.lev_builders[self.distance as usize];
         let dfa = FstDfaWrapper(builder.build_dfa(&self.query));
 
@@ -125,7 +136,7 @@ impl<'a> SearchBuilder<'a> {
                     distance: dist,
                 })
             })
-            .collect::<Result<_, Box<dyn Error>>>()?;
+            .collect::<Result<_, DictionaryError>>()?;
 
         results
             .sort_unstable_by(|a, b| a.distance.cmp(&b.distance).then_with(|| a.key.cmp(&b.key)));
@@ -139,14 +150,13 @@ impl Dictionary {
     ///
     /// # Examples
     /// ```no_run
-    /// # use std::error::Error;
-    /// # use fuzzies::Dictionary;
-    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # use fuzzies::{Dictionary, DictionaryError};
+    /// # fn main() -> Result<(), DictionaryError> {
     /// let dict = Dictionary::open("dict.fst")?;
     /// # Ok(())
     /// # }
     /// ```
-    pub fn open(path: impl AsRef<Path>) -> Result<Self, Box<dyn Error>> {
+    pub fn open(path: impl AsRef<Path>) -> Result<Self, DictionaryError> {
         let file = File::open(path)?;
         let mmap = unsafe { Mmap::map(&file)? };
         let map = Set::new(mmap)?;
@@ -164,14 +174,16 @@ impl Dictionary {
     ///
     /// # Examples
     /// ```no_run
-    /// # use fuzzies::Dictionary;
+    /// # use fuzzies::{Dictionary, DictionaryError};
+    /// # fn main() -> Result<(), DictionaryError> {
     /// Dictionary::sort("unsorted_words.txt")?;
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// # Ok(())
+    /// # }
     /// ```
     ///
     /// # Warning
     /// Loads the entire file into memory. Use an external CLI utility like `sort` for massive datasets.
-    pub fn sort(path: impl AsRef<Path>) -> Result<(), Box<dyn Error>> {
+    pub fn sort(path: impl AsRef<Path>) -> Result<(), DictionaryError> {
         let path = path.as_ref();
         let file = File::open(path)?;
         let reader = BufReader::new(file);
@@ -193,7 +205,7 @@ impl Dictionary {
     pub fn build(
         input_path: impl AsRef<Path>,
         output_path: impl AsRef<Path>,
-    ) -> Result<(), Box<dyn Error>> {
+    ) -> Result<(), DictionaryError> {
         let mut reader = BufReader::new(File::open(input_path)?);
         let mut build = SetBuilder::new(BufWriter::new(File::create(output_path)?))?;
         let mut line = String::new();
@@ -214,9 +226,8 @@ impl Dictionary {
     ///
     /// # Examples
     /// ```no_run
-    /// # use std::error::Error;
-    /// # use fuzzies::Dictionary;
-    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # use fuzzies::{Dictionary, DictionaryError};
+    /// # fn main() -> Result<(), DictionaryError> {
     /// # let dict = Dictionary::open("dict.fst")?;
     /// let results = dict.search("baxana")
     ///     .distance(2)
@@ -233,22 +244,20 @@ impl Dictionary {
     ///
     /// # Examples
     /// ```no_run
-    /// # use fuzzies::Dictionary;
+    /// # use fuzzies::{Dictionary, DictionaryError};
+    /// # fn main() -> Result<(), DictionaryError> {
     /// # let dict = Dictionary::open("dict.fst")?;
     /// let batch_results = dict.batch_search(&["baxana", "appl", "cheriy"]);
-    /// # Ok::<(), Box<dyn std::error::Error>>(())
+    /// # Ok(())
+    /// # }
     /// ```
     pub fn batch_search(
         &self,
         queries: &[&str],
-    ) -> Vec<Result<Vec<SearchResult>, Box<dyn Error + Send + Sync>>> {
+    ) -> Vec<Result<Vec<SearchResult>, DictionaryError>> {
         queries
             .par_iter()
-            .map(|&query| {
-                self.search(query)
-                    .execute()
-                    .map_err(|e| e.to_string().into())
-            })
+            .map(|&query| self.search(query).execute())
             .collect()
     }
 }
