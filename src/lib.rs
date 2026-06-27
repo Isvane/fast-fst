@@ -52,7 +52,6 @@ impl fst::Automaton for FstDfaWrapper {
 /// Memory-mapped FST dictionary for fuzzy string lookups.
 pub struct Dictionary {
     map: Set<Mmap>,
-    lev_builders: Vec<LevenshteinAutomatonBuilder>,
 }
 
 /// A matched item from a fuzzy search.
@@ -72,16 +71,18 @@ pub struct SearchBuilder<'a> {
     query: String,
     limit: usize,
     distance: u8,
+    transposition: bool,
 }
 
 impl<'a> SearchBuilder<'a> {
-    /// Defaults: `limit = 5`, `distance = 1`.
+    /// Defaults: `limit = 5`, `distance = 1`, `transposition = false`.
     pub fn new(dictionary: &'a Dictionary, query: &str) -> Self {
         Self {
             dictionary,
             query: query.to_string(),
             limit: 5,
             distance: 1,
+            transposition: false,
         }
     }
 
@@ -97,9 +98,14 @@ impl<'a> SearchBuilder<'a> {
         self
     }
 
+    pub fn transposition(mut self, transposition: bool) -> Self {
+        self.transposition = transposition;
+        self
+    }
+
     /// Evaluates the fuzzy search against the FST.
     pub fn execute(self) -> Result<Vec<SearchResult>, DictionaryError> {
-        let builder = &self.dictionary.lev_builders[self.distance as usize];
+        let builder = LevenshteinAutomatonBuilder::new(self.distance, self.transposition);
         let dfa = FstDfaWrapper(builder.build_dfa(&self.query));
 
         let mut heap = BinaryHeap::with_capacity(self.limit);
@@ -161,11 +167,7 @@ impl Dictionary {
         let mmap = unsafe { Mmap::map(&file)? };
         let map = Set::new(mmap)?;
 
-        let lev_builders = (0..=2)
-            .map(|d| LevenshteinAutomatonBuilder::new(d, false))
-            .collect();
-
-        Ok(Self { map, lev_builders })
+        Ok(Self { map })
     }
 
     /// Sorts a newline-delimited text file in-place by byte order.
@@ -282,13 +284,8 @@ mod tests {
         mmap.copy_from_slice(&buffer);
         let mmap = mmap.make_read_only().unwrap();
 
-        let lev_builders = (0..=2)
-            .map(|d| LevenshteinAutomatonBuilder::new(d, false))
-            .collect();
-
         Dictionary {
             map: Set::new(mmap).unwrap(),
-            lev_builders,
         }
     }
 
@@ -324,6 +321,16 @@ mod tests {
         let results = dict.search("mime").limit(3).execute().unwrap();
         let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
         assert_eq!(keys, vec!["mime", "lime", "time"]);
+
+        // Test transpositiom
+        let results = dict
+            .search("banaan")
+            .limit(1)
+            .transposition(true)
+            .execute()
+            .unwrap();
+        let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
+        assert_eq!(keys, vec!["banana"]);
     }
 
     #[test]

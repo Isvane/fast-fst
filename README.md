@@ -9,13 +9,17 @@ Fuzzy search crate for Rust.
 More information about this crate can be found in the [crate documentation](https://docs.rs/fuzzies)
 
 > [!WARNING]  
-> **Early Development & Disclaimer:** This project is in its early stages of development. **Breaking changes may occur frequently** and without warning between versions. This library is built by a university sophomore for personal learning and experimentation, not as a full-time, production-ready project. Use with caution!
+> This library is a student learning project in early development. Breaking changes may occur frequently and without warning.
+
+---
 
 ## Installation
 
 ```bash
 cargo add fuzzies
 ```
+
+---
 
 ## Example
 
@@ -57,28 +61,33 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 ```
 
+---
+
 ## Performance
 
 The following benchmarks were gathered using Criterion to evaluate lookup speeds for single and parallel batch searches.
 You can re-run these benchmarks on your hardware using `cargo bench`.
 
-## Single Search Performance
+### Single Search
 
-| Query                      | Execution Time (Avg) |
-|---------------------------|----------------------|
-| apple (Exact/Close match) | ~3.87 µs             |
-| baxana (Fuzzy match)      | ~4.85 µs             |
-| missingword (No match)    | ~8.93 µs             |
+```ignore
+Dictionary Single Search/apple          6.8904 µs/iter (+/- 0.0174 µs)
+Dictionary Single Search/baxana         8.1007 µs/iter (+/- 0.0321 µs)
+Dictionary Single Search/missingword   12.1830 µs/iter (+/- 0.0285 µs)
+```
 
-## Batch Search Performance
+### Batch Search
 
-| Batch Size  | Total Execution Time | Per-Query Avg |
-|------------|----------------------|---------------|
-| 100 queries | ~302.6 µs           | ~3.02 µs      |
-| 500 queries | ~1.42 ms            | ~2.84 µs      |
-| 1000 queries| ~2.84 ms            | ~2.84 µs      |
+```ignore
+Rayon Parallel Batch/100 queries      406.79 µs/iter (+/- 1.60 µs)
+Rayon Parallel Batch/500 queries     1.9530 ms/iter (+/- 0.0051 ms)
+Rayon Parallel Batch/1000 queries    3.9583 ms/iter (+/- 0.0141 ms)
+```
 
-*Note: Benchmarks were executed on an **Intel Core i5-10300H (4 cores, 8 threads, Battery set to HIgh Performance mode)**. Performance may scale significantly higher on more modern or high-end desktop/server CPUs.*
+> [!NOTE]
+> Benchmarks were executed on an Intel Core i5-10300H (4 cores, 8 threads, Battery set to High Performance mode). Performance may scale significantly higher on more modern or high-end CPUs.
+
+---
 
 ## License
 
