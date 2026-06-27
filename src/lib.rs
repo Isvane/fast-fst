@@ -97,7 +97,7 @@ impl<'a> SearchBuilder<'a> {
         self.distance = distance.min(2);
         self
     }
-
+/// Sets whether to allow transpositions (e.g., swapping adjacent characters like "teh" -> "the").
     pub fn transposition(mut self, transposition: bool) -> Self {
         self.transposition = transposition;
         self
