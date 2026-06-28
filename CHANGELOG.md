@@ -20,19 +20,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Documentation
 
 - update README.md ([#34](https://github.com/Isvane/fuzzies/pull/34))
-- add performance benchmarks
+- add performance benchmarks ([#31 ](https://github.com/Isvane/fuzzies/pull/31))
 - streamline dictionary API documentation and add examples ([#28](https://github.com/Isvane/fuzzies/pull/28))
 
 ### Refactored
 
-- replace Box<dyn Error> with thiserror custom enum
+- replace Box<dyn Error> with thiserror custom enum ([e73f](e73f469371c743478f48c7b056cd044ddeadac4f))
 - *(search)* [**breaking**] cap max Levenshtein distance at 2 ([#32](https://github.com/Isvane/fuzzies/pull/32))
+</blockquote>
+
 
 ## [0.3.0](https://github.com/Isvane/fuzzies/compare/v0.2.1...v0.3.0) - 2026-06-25
 
 ### Fixed
 
-- *(search) [**breaking**] fix sorting by distance bug ([#25](https://github.com/Isvane/fuzzies/pull/25))
+- *(search)* [**breaking**] fix sorting by distance bug ([#25](https://github.com/Isvane/fuzzies/pull/25))
 - *(search)* prioritize Levenshtein distance over alphabetical order ([#22](https://github.com/Isvane/fuzzies/pull/22))
 
 ### Other
