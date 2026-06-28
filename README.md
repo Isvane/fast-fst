@@ -23,30 +23,35 @@ cargo add fuzzies
 
 ## Example
 
-This library allows you to build a compact, memory-mapped FST from a file and perform fast, fuzzy searches with configurable Levenshtein distances (supporting distances of 1 and 2).
+This library allows you to build a compact, memory-mapped FST from a file and perform fast, fuzzy searches with configurable Levenshtein distances.
 
 ```rust, no_run
 use fuzzies::Dictionary;
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // 1. Build the dictionary from a text file (one word per line)
-    // Note: The input file must be sorted lexicographically
+    // 1. Prepare your raw text file (must be sorted lexicographically)
+    // Fuzzies provides a handy in-place sorter for convenience:
+    Dictionary::sort("words.txt")?;
+
+    // 2. Build the immutable binary FST from the sorted text file
     Dictionary::build("words.txt", "words.fst")?;
 
-    // 2. Load the dictionary
+    // 3. Load the dictionary
     let dict = Dictionary::open("words.fst")?;
 
-    // 3. Perform a fuzzy search with a max typo distance of 2 and limit of 5 results
-    let results = dict.search("baxaxa")
+    // 4. Perform a fuzzy search with a max typo distance of 2 and limit of 5 results
+    // We can also enable transposition handling (e.g., "banaan" -> "banana")
+    let results = dict.search("banaan")
         .distance(2)
+        .transposition(true)
         .limit(5)
         .execute()?;
     
     for result in results {
-        println!("Found: {} (Exact: {})", result.key, result.is_exact);
+        println!("Found: {} (Distance: {}, Exact: {})", result.key, result.distance, result.is_exact);
     }
 
-    // 4. Batch search (multithreaded, defaults to distance of 1)
+    // 5. Batch search (multithreaded, defaults to a distance of 1)
     let queries = vec!["aple", "baxana", "cherri"];
     let batch_results = dict.batch_search(&queries);
 
