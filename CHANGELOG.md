@@ -7,6 +7,27 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.4.0](https://github.com/Isvane/fuzzies/compare/v0.3.0...v0.4.0) - 2026-06-28
+
+### Added
+
+- *(search)* [**breaking**] support transposition ([#33](https://github.com/Isvane/fuzzies/pull/33))
+
+### Continuous Integration
+
+- optimize Rust workflow and configure release-plz changelog/releases ([#30](https://github.com/Isvane/fuzzies/pull/30))
+
+### Documentation
+
+- update README.md ([#34](https://github.com/Isvane/fuzzies/pull/34))
+- add performance benchmarks
+- streamline dictionary API documentation and add examples ([#28](https://github.com/Isvane/fuzzies/pull/28))
+
+### Refactored
+
+- replace Box<dyn Error> with thiserror custom enum
+- *(search)* [**breaking**] cap max Levenshtein distance at 2 ([#32](https://github.com/Isvane/fuzzies/pull/32))
+
 ## [0.3.0](https://github.com/Isvane/fuzzies/compare/v0.2.1...v0.3.0) - 2026-06-25
 
 ### Fixed
