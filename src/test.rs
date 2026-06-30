@@ -172,4 +172,19 @@ mod tests {
         // "fest" should come first a distance of 1 is a better match than 2.
         assert_eq!(keys, vec!["fest", "east"]);
     }
+
+    #[test]
+    fn test_prefix_search() {
+        let dict = create_test_dict(&["apple", "application", "apricot"]);
+
+        let results = dict
+            .search("apal")
+            .distance(1)
+            .prefix(true)
+            .execute()
+            .unwrap();
+        let keys: Vec<&str> = results.iter().map(|r| r.key.as_ref()).collect();
+
+        assert_eq!(keys, vec!["apple", "application"]);
+    }
 }
