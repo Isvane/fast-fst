@@ -74,6 +74,7 @@ pub struct SearchBuilder<'a> {
     limit: usize,
     distance: u8,
     transposition: bool,
+    prefix: bool,
 }
 
 impl<'a> SearchBuilder<'a> {
@@ -85,6 +86,7 @@ impl<'a> SearchBuilder<'a> {
             limit: 5,
             distance: 1,
             transposition: false,
+            prefix: false,
         }
     }
 
@@ -106,10 +108,21 @@ impl<'a> SearchBuilder<'a> {
         self
     }
 
+    /// Sets whether to perform a prefix fuzzy search.
+    pub fn prefix(mut self, prefix: bool) -> Self {
+        self.prefix = prefix;
+        self
+    }
+
     /// Evaluates the fuzzy search against the FST.
     pub fn execute(self) -> Result<Vec<SearchResult>, DictionaryError> {
         let builder = LevenshteinAutomatonBuilder::new(self.distance, self.transposition);
-        let dfa = FstDfaWrapper(builder.build_dfa(&self.query));
+
+        let dfa = FstDfaWrapper(if self.prefix {
+            builder.build_prefix_dfa(&self.query)
+        } else {
+            builder.build_dfa(&self.query)
+        });
 
         let mut heap = BinaryHeap::with_capacity(self.limit);
         let mut stream = self.dictionary.map.search(&dfa).into_stream();
